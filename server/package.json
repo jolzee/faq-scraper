@@ -1,14 +1,63 @@
 {
-  "name": "server",
+  "name": "faq-scraper-server",
   "version": "0.0.0",
-  "private": true,
+  "description": "Exposes Restful Endpoints to Schedule Scraping of FAQs",
+  "displayName": "Express Server performing Scraping Operations",
+  "author": "Peter Joles <peter-joles@artificial-solutions.com> (https://www.linkedin.com/in/peterjoles/)",
+  "main": "./dist-server/bin/www.js",
+  "engines": {
+    "node": "12.13.x",
+    "npm": "6.x"
+  },
   "scripts": {
-    "start": "node ./bin/www"
+    "start": "npm run prod",
+    "build": "npm-run-all clean transpile",
+    "server": "node ./dist-server/bin/www",
+    "dev": "cross-env NODE_ENV=development nodemon --exec babel-node ./src/bin/www.js",
+    "dev:transpile": "cross-env NODE_ENV=development npm-run-all build server",
+    "dev:watch": "nodemon",
+    "prod": "cross-env NODE_ENV=production npm-run-all build server",
+    "transpile": "babel ./src --out-dir dist-server",
+    "clean": "rimraf dist-server"
   },
   "dependencies": {
-    "cookie-parser": "~1.4.4",
+    "@babel/cli": "^7.8.4",
+    "@babel/core": "^7.9.0",
+    "@babel/preset-env": "^7.9.0",
+    "app-root-path": "^3.0.0",
+    "bottleneck": "^2.19.5",
+    "cookie-parser": "~1.4.5",
+    "core-js": "^3.6.4",
+    "crawler": "^1.2.1",
+    "cross-env": "^7.0.2",
     "debug": "~2.6.9",
-    "express": "~4.16.1",
-    "morgan": "~1.9.1"
+    "dotenv": "^8.2.0",
+    "express": "~4.17.1",
+    "morgan": "^1.10.0",
+    "nodemon": "^2.0.2",
+    "npm-run-all": "^4.1.5",
+    "regenerator-runtime": "^0.13.5",
+    "rimraf": "^3.0.2",
+    "winston": "^3.2.1",
+    "winston-console-format": "^1.0.5"
+  },
+  "devDependencies": {
+    "@babel/node": "^7.8.7"
+  },
+  "babel": {
+    "presets": [
+      "@babel/preset-env"
+    ]
+  },
+  "nodemonConfig": {
+    "exec": "npm run dev:transpile",
+    "watch": [
+      "src/*"
+    ],
+    "ignore": [
+      "**/__tests__/**",
+      "*.test.js",
+      "*.spec.js"
+    ]
   }
 }
