@@ -1,6 +1,6 @@
 <template>
   <v-app>
-    <v-app-bar app color="secondary" dark>
+    <v-app-bar app color="orange lighten-4" dark>
       <div class="d-flex align-center">
         <v-img
           alt="FAQ Scrpaer"
@@ -20,6 +20,8 @@
       </v-btn>
     </v-app-bar>
 
+    <Code></Code>
+
     <v-content>
       <Scrapers :addConfig="addConfig" />
     </v-content>
@@ -28,12 +30,14 @@
 
 <script>
 import Scrapers from "./components/Scrapers";
+import Code from "./components/Code";
 
 export default {
   name: "App",
 
   components: {
-    Scrapers
+    Scrapers,
+    Code
   },
 
   data: () => ({

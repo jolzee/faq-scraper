@@ -34,6 +34,10 @@
         </v-col>
         <v-col cols="12" class="text-right">
           <v-spacer></v-spacer>
+          <v-btn color="blue lighten-4 mr-2">
+            <span class="mr-2">Cancel</span>
+            <v-icon>mdi-arrow-left</v-icon>
+          </v-btn>
           <v-btn color="red darken-4 mr-2 white--text">
             <span class="mr-2">Delete</span>
             <v-icon>mdi-delete-sweep</v-icon>

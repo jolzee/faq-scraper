@@ -1,5 +1,5 @@
 <template>
-  <v-dialog v-model="dialog" persistent max-width="600px">
+  <v-dialog v-model="dialog" persistent max-width="800px">
     <v-expansion-panels v-model="panel">
       <Scraper :config="config" :hideIcon="true" :expand="true"></Scraper>
     </v-expansion-panels>
