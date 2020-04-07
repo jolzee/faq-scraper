@@ -1,6 +1,6 @@
 <template>
   <v-app>
-    <v-app-bar app color="orange lighten-4" dark>
+    <v-app-bar app color="#FFFAF0" dark>
       <div class="d-flex align-center">
         <v-img
           alt="FAQ Scrpaer"
@@ -14,7 +14,7 @@
 
       <v-spacer></v-spacer>
 
-      <v-btn color="accent" @click="addConfig = true">
+      <v-btn color="indigo darken-4" small @click="addConfig">
         <span class="mr-2">Add New Scraper</span>
         <v-icon>mdi-plus-thick</v-icon>
       </v-btn>
@@ -23,27 +23,33 @@
     <Code></Code>
 
     <v-content>
-      <Scrapers :addConfig="addConfig" />
+      <Scrapers></Scrapers>
     </v-content>
   </v-app>
 </template>
 
 <script>
+// import { mapGetters } from "vuex";
+
 import Scrapers from "./components/Scrapers";
 import Code from "./components/Code";
 
 export default {
   name: "App",
-
   components: {
     Scrapers,
     Code
   },
-
   data: () => ({
-    addConfig: false
     //
   }),
-  methods: {}
+  computed: {
+    // ...mapGetters(["testResults"])
+  },
+  methods: {
+    addConfig() {
+      this.$store.commit("SHOW_NEW_CONFIG_DIALOG");
+    }
+  }
 };
 </script>

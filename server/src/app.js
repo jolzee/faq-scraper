@@ -1,15 +1,17 @@
 const morgan = require("morgan");
 const winston = require("./config/winston");
+var cors = require("cors");
 
 var express = require("express");
 // var path = require("path");
 var cookieParser = require("cookie-parser");
 var logger = require("morgan");
 
-var scaperRouter = require("./routes/scraper");
+var scaperRouter = require("./routes/router");
 
 var app = express();
 
+app.use(cors());
 app.use(morgan("tiny", { stream: winston.stream }));
 app.use(logger("dev"));
 app.use(express.json());

@@ -1,12 +1,19 @@
 <template>
-  <v-dialog v-model="dialog" persistent max-width="800px">
+  <v-dialog v-if="showNewConfigDialog" v-model="dialog" persistent max-width="800px">
     <v-expansion-panels v-model="panel">
-      <Scraper :config="config" :hideIcon="true" :expand="true"></Scraper>
+      <Scraper
+        :isNew="true"
+        :config="getConfigBase"
+        :hideIcon="true"
+        :expand="true"
+        v-on:close="closeDialog"
+      ></Scraper>
     </v-expansion-panels>
   </v-dialog>
 </template>
 
 <script>
+import { mapGetters } from "vuex";
 import Scraper from "./Scraper";
 export default {
   name: "NewScaper",
@@ -34,9 +41,21 @@ export default {
       }
     }
   }),
-  computed: {},
+
+  computed: {
+    ...mapGetters(["showNewConfigDialog", "newConfigBase"]),
+    getConfigBase() {
+      if (this.newConfigBase) {
+        return this.newConfigBase;
+      } else {
+        return this.config;
+      }
+    }
+  },
   methods: {
-    myMethod() {}
+    closeDialog() {
+      this.$store.commit("HIDE_NEW_CONFIG_DIALOG");
+    }
   }
 };
 </script>

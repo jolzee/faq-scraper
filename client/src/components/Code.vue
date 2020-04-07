@@ -1,5 +1,5 @@
 <template>
-  <v-row justify="center">
+  <v-row v-if="resultsJson" justify="center">
     <v-dialog v-model="dialog" scrollable max-width="800px">
       <template v-slot:activator="{ on }">
         <v-btn color="primary" dark v-on="on">Open Dialog</v-btn>
@@ -8,12 +8,12 @@
         <v-card-title>Scraper Results</v-card-title>
         <v-divider></v-divider>
         <v-card-text style="height: 600px;" class="py-3">
-          <highlight-code lang="json">{{ results }}</highlight-code>
+          <highlight-code lang="json">{{ resultsJson }}</highlight-code>
         </v-card-text>
         <v-divider></v-divider>
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn color="blue darken-1" text @click="dialog = false">Close</v-btn>
+          <v-btn color="blue darken-1" text @click="clearResults">Close</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -21,70 +21,24 @@
 </template>
 
 <script>
+import { mapGetters } from "vuex";
+
 import "highlight.js/styles/default.css";
 
 export default {
   name: "Code",
   components: {},
   data: () => ({
-    dialog: true,
-    results: [
-      {
-        parentKey: "huggies",
-        childKey: "faq-us",
-        cron: "0 0 15 * *",
-        url: "https://www.huggies.com/en-us/faq/question/",
-        rules: {
-          iterSelector: "div.article_content_wrapper",
-          question: {
-            selector: ".seo-art-h2",
-            isHtml: false
-          },
-          answer: {
-            selector: "p",
-            isHtml: true
-          }
-        }
-      },
-      {
-        parentKey: "huggies",
-        childKey: "faq-us",
-        cron: "0 0 15 * *",
-        url: "https://www.huggies.com/en-us/faq/question/",
-        rules: {
-          iterSelector: "div.article_content_wrapper",
-          question: {
-            selector: ".seo-art-h2",
-            isHtml: false
-          },
-          answer: {
-            selector: "p",
-            isHtml: true
-          }
-        }
-      },
-      {
-        parentKey: "huggies",
-        childKey: "faq-us",
-        cron: "0 0 15 * *",
-        url: "https://www.huggies.com/en-us/faq/question/",
-        rules: {
-          iterSelector: "div.article_content_wrapper",
-          question: {
-            selector: ".seo-art-h2",
-            isHtml: false
-          },
-          answer: {
-            selector: "p",
-            isHtml: true
-          }
-        }
-      }
-    ]
+    dialog: true
   }),
-  computed: {},
+  computed: {
+    ...mapGetters(["resultsJson"])
+    // myComputedMethod() {}
+  },
   methods: {
-    myMethod() {}
+    clearResults() {
+      this.$store.commit("CLEAR_RESULTS_JSON");
+    }
   }
 };
 </script>

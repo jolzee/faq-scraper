@@ -1,4 +1,7 @@
 require("dotenv").config();
+var cron = require("node-cron");
+var absolutify = require("absolutify");
+var url = require("url");
 var express = require("express");
 var router = express.Router();
 router.delete;
@@ -13,6 +16,8 @@ var redis = new Redis({
   db: 0,
 });
 
+let cronTasks = [];
+
 const getConfig = (parentKey, childKey) => {
   return redis.hget("faq-configs", `${parentKey}/${childKey}`);
 };
@@ -25,12 +30,93 @@ const getAllConfigs = () => {
   return redis.hvals("faq-configs");
 };
 
+const scheduleCronJobs = () => {
+  logger.debug(`Refreshing CRON Jobs`);
+  cronTasks = [];
+  getAllConfigs().then((configs) => {
+    configs.forEach((config) => {
+      try {
+        config = JSON.parse(config);
+        if (cron.validate(config.cron)) {
+          var task = cron.schedule(config.cron, () => {
+            logger.debug(`CRON: Time to refresh`, config);
+            refreshResults(config);
+          });
+          cronTasks.push(task);
+        }
+      } catch (e) {
+        logger.error(`CRON: Bad config: config`);
+      }
+    });
+  });
+};
+
+const refreshResults = (config) => {
+  logger.debug(`Refreshing.. ${config.parentKey} ${config.childKey}`);
+  try {
+    let results = {
+      date: new Date().toUTCString(),
+      config: config,
+      results: [],
+    };
+
+    c.queue([
+      {
+        uri: config.url,
+        jQuery: true,
+
+        // The global callback won't be called
+        callback: function (error, scrapeRes, done) {
+          if (error) {
+            logger.error(error);
+          } else {
+            var q = url.parse(config.url, true);
+            let site = q.protocol + "//" + q.host;
+            var jQuery = scrapeRes.$;
+            jQuery(config.rules.iterSelector).each(function (i, elem) {
+              let qa = {};
+              let qElem = jQuery(this).find(config.rules.question.selector);
+              qa.question = config.rules.question.isHtml
+                ? absolutify(`<p>${qElem.html()}</p>`, site)
+                : qElem.text();
+
+              let aElem = jQuery(this).find(config.rules.answer.selector);
+
+              qa.answer = config.rules.answer.isHtml
+                ? absolutify(`<p>${aElem.html()}</p>`, site)
+                : aElem.text();
+
+              qa.question = qa.question.trim();
+              qa.answer = qa.answer.trim();
+
+              if (qa.question && qa.answer) {
+                results.results.push(qa);
+              }
+            });
+            saveResults(results);
+            saveConfig(config);
+          }
+          done();
+        },
+      },
+    ]);
+  } catch (e) {
+    logger.error(`Unable to CRON Refresh: ${e.message}`, config);
+  }
+};
+
 const saveConfig = (config) => {
   redis.hset(
     "faq-configs",
     `${config.parentKey}/${config.childKey}`,
     JSON.stringify(config)
   );
+  setTimeout(() => {
+    cronTasks.forEach((task) => {
+      task.destroy();
+    });
+    scheduleCronJobs();
+  }, 120000);
 };
 
 const deleteConfig = (config) => {
@@ -76,6 +162,12 @@ var c = new Crawler({
   },
 });
 
+function sortConfigs(a, b) {
+  var x = `${a.parentKey.toLowerCase()}${a.childKey.toLowerCase()}`;
+  var y = `${b.parentKey.toLowerCase()}${b.childKey.toLowerCase()}`;
+  return x < y ? -1 : x > y ? 1 : 0;
+}
+
 /**
  * Delete this result for this parentKey
  */
@@ -84,7 +176,9 @@ router.delete("/config/:parentKey/:childKey", function (req, res, next) {
   let childKey = req.params.childKey;
   deleteConfigKey(parentKey, childKey).then((result) => {
     if (result > 0) {
-      res.send({ result: "ok" });
+      deleteResultsKey(parentKey, childKey).then((result) => {
+        res.send({ result: "ok" });
+      });
     } else {
       res.send({ result: "nothing to delete" });
     }
@@ -103,6 +197,30 @@ router.delete("/results/:parentKey/:childKey", function (req, res, next) {
   });
 });
 
+router.get("/results/:parentKey/:childKey", function (req, res, next) {
+  let parentKey = req.params.parentKey;
+  let childKey = req.params.childKey;
+  getResults(parentKey, childKey).then((result) => {
+    if (result) {
+      res.send(JSON.parse(result, null, 2));
+    } else {
+      res.send({ results: [] });
+    }
+  });
+});
+
+router.get("/config/:parentKey/:childKey", function (req, res, next) {
+  let parentKey = req.params.parentKey;
+  let childKey = req.params.childKey;
+  getConfig(parentKey, childKey).then((result) => {
+    if (result) {
+      res.send(JSON.parse(result, null, 2));
+    } else {
+      res.send({ results: [] });
+    }
+  });
+});
+
 router.post("/save-config", function (req, res, next) {
   let config = req.body;
   saveConfig(config);
@@ -116,9 +234,14 @@ router.post("/delete-config", function (req, res, next) {
 });
 
 router.get("/all-configs", function (req, res, next) {
+  let allConfigs = [];
   getAllConfigs()
     .then((results) => {
-      res.send(results);
+      results.forEach((result) => {
+        allConfigs.push(JSON.parse(result, null, 2));
+      });
+      allConfigs.sort(sortConfigs);
+      res.send(allConfigs);
     })
     .catch((err) => {
       res.send({ result: err.message });
@@ -128,10 +251,14 @@ router.get("/all-configs", function (req, res, next) {
 /**
  * Conbine and return results for these keys
  */
-router.post("/combine-results", function (req, res, next) {
+router.post("/combine-results", async function (req, res, next) {
   let targetKeysConfig = req.body;
-  let keysArray = targetKeysConfig.keys;
-  res.send({ result: "ok" });
+  let combined = [];
+  for (const target of targetKeysConfig) {
+    let result = await getResults(target.parentKey, target.childKey);
+    combined.push(JSON.parse(result, null, 2));
+  }
+  res.send(combined);
 });
 
 /* Scrape using config */
@@ -167,7 +294,7 @@ router.post("/test-scrape", function (req, res, next) {
 
       // The global callback won't be called
       callback: function (error, scrapeRes, done) {
-        handScrapeResponse(error, scrapeRes, config, results, res);
+        handleScrapeResponse(error, scrapeRes, config, results, res);
         done();
       },
     },
@@ -210,25 +337,34 @@ router.post("/scrape", function (req, res, next) {
         if (error) {
           logger.error(error);
         } else {
+          var q = url.parse(config.url, true);
+          let site = q.protocol + "//" + q.host;
           var jQuery = scrapeRes.$;
           jQuery(config.rules.iterSelector).each(function (i, elem) {
             let qa = {};
             let qElem = jQuery(this).find(config.rules.question.selector);
             qa.question = config.rules.question.isHtml
-              ? qElem.html()
+              ? absolutify(`<p>${qElem.html()}</p>`, site)
               : qElem.text();
 
             let aElem = jQuery(this).find(config.rules.answer.selector);
 
             qa.answer = config.rules.answer.isHtml
-              ? aElem.html()
+              ? absolutify(`<p>${aElem.html()}</p>`, site)
               : aElem.text();
+
+            qa.question = qa.question.trim();
+            qa.answer = qa.answer.trim();
+
+            // var siteURL = "http://" + top.location.host.toString();
+            // var $internalLinks = $("a[href^='"+siteURL+"'], a[href^='/'], a[href^='./'], a[href^='../'], a[href^='#']");
 
             if (qa.question && qa.answer) {
               results.results.push(qa);
             }
           });
           saveResults(results);
+          saveConfig(config);
           res.send(results);
         }
         done();
@@ -237,8 +373,10 @@ router.post("/scrape", function (req, res, next) {
   ]);
 });
 
-module.exports = router;
-function handScrapeResponse(error, scrapeRes, config, results, res) {
+function handleScrapeResponse(error, scrapeRes, config, results, res) {
+  var q = url.parse(config.url, true);
+  let site = q.protocol + "//" + q.host;
+  results.results = [];
   if (error) {
     logger.error(error);
   } else {
@@ -246,9 +384,16 @@ function handScrapeResponse(error, scrapeRes, config, results, res) {
     jQuery(config.rules.iterSelector).each(function (i, elem) {
       let qa = {};
       let qElem = jQuery(this).find(config.rules.question.selector);
-      qa.question = config.rules.question.isHtml ? qElem.html() : qElem.text();
+      qa.question = config.rules.question.isHtml
+        ? absolutify(`<p>${qElem.html()}</p>`, site)
+        : qElem.text();
       let aElem = jQuery(this).find(config.rules.answer.selector);
-      qa.answer = config.rules.answer.isHtml ? aElem.html() : aElem.text();
+      qa.answer = config.rules.answer.isHtml
+        ? absolutify(`<p>${aElem.html()}</p>`, site)
+        : aElem.text();
+      qa.question = qa.question.trim();
+      qa.answer = qa.answer.trim();
+
       if (qa.question && qa.answer) {
         results.results.push(qa);
       }
@@ -256,3 +401,7 @@ function handScrapeResponse(error, scrapeRes, config, results, res) {
     res.send(results);
   }
 }
+
+scheduleCronJobs();
+
+module.exports = router;
