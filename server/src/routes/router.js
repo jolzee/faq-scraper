@@ -8,6 +8,7 @@ router.delete;
 const logger = require("../config/winston");
 var Crawler = require("crawler");
 var Redis = require("ioredis");
+var pretty = require("pretty");
 var redis = new Redis({
   port: parseInt(process.env.REDIS_PORT), // Redis port
   host: process.env.REDIS_HOST, // Redis host
@@ -54,52 +55,14 @@ const scheduleCronJobs = () => {
 const refreshResults = (config) => {
   logger.debug(`Refreshing.. ${config.parentKey} ${config.childKey}`);
   try {
-    let results = {
-      date: new Date().toUTCString(),
-      config: config,
-      results: [],
-    };
-
-    c.queue([
-      {
-        uri: config.url,
-        jQuery: true,
-
-        // The global callback won't be called
-        callback: function (error, scrapeRes, done) {
-          if (error) {
-            logger.error(error);
-          } else {
-            var q = url.parse(config.url, true);
-            let site = q.protocol + "//" + q.host;
-            var jQuery = scrapeRes.$;
-            jQuery(config.rules.iterSelector).each(function (i, elem) {
-              let qa = {};
-              let qElem = jQuery(this).find(config.rules.question.selector);
-              qa.question = config.rules.question.isHtml
-                ? absolutify(`<p>${qElem.html()}</p>`, site)
-                : qElem.text();
-
-              let aElem = jQuery(this).find(config.rules.answer.selector);
-
-              qa.answer = config.rules.answer.isHtml
-                ? absolutify(`<p>${aElem.html()}</p>`, site)
-                : aElem.text();
-
-              qa.question = qa.question.trim();
-              qa.answer = qa.answer.trim();
-
-              if (qa.question && qa.answer) {
-                results.results.push(qa);
-              }
-            });
-            saveResults(results);
-            saveConfig(config);
-          }
-          done();
-        },
-      },
-    ]);
+    handleScrape(config)
+      .then((results) => {
+        saveResults(results);
+        saveConfig(config);
+      })
+      .catch((error) => {
+        logger.error(`Unable to CRON Refresh: ${error.message}`, config);
+      });
   } catch (e) {
     logger.error(`Unable to CRON Refresh: ${e.message}`, config);
   }
@@ -264,46 +227,46 @@ router.post("/combine-results", async function (req, res, next) {
 /* Scrape using config */
 router.post("/test-scrape", function (req, res, next) {
   let config = req.body;
-  // {
-  //   "parentKey": "huggies",
-  //   "childKey": "faq-us",
-  //   "cron": "0 0 15 * *",  // min hour day-of-month month day-of-week
-  //   "url": "https://www.huggies.com/en-us/faq/question/",
-  //   "rules": {
-  //     "iterSelector": "div.article_content_wrapper",
-  //     "question": {
-  //       "selector": ".seo-art-h2",
-  //       "isHtml": false
-  //     },
-  //     "answer": {
-  //       "selector": "p",
-  //       "isHtml": true
-  //     }
-  //   }
-  // }
-  let results = {
+
+  let emptyResults = {
     date: new Date().toUTCString(),
     config: config,
     results: [],
   };
 
-  c.queue([
-    {
-      uri: config.url,
-      jQuery: true,
-
-      // The global callback won't be called
-      callback: function (error, scrapeRes, done) {
-        handleScrapeResponse(error, scrapeRes, config, results, res);
-        done();
-      },
-    },
-  ]);
+  handleScrape(config)
+    .then((results) => {
+      res.send(results);
+    })
+    .catch((error) => {
+      emptyResults.error = error.message;
+      res.send(emptyResults);
+    });
 });
 
 /* Scrape using config */
 router.post("/scrape", function (req, res, next) {
   let config = req.body;
+
+  let emptyResults = {
+    date: new Date().toUTCString(),
+    config: config,
+    results: [],
+  };
+
+  handleScrape(config)
+    .then((results) => {
+      saveResults(results);
+      saveConfig(config);
+      res.send(results);
+    })
+    .catch((error) => {
+      emptyResults.error = error.message;
+      res.send(emptyResults);
+    });
+});
+
+function handleScrape(config) {
   // {
   //   "parentKey": "huggies",
   //   "childKey": "faq-us",
@@ -311,11 +274,13 @@ router.post("/scrape", function (req, res, next) {
   //   "url": "https://www.huggies.com/en-us/faq/question/",
   //   "rules": {
   //     "iterSelector": "div.article_content_wrapper",
+  //
   //     "question": {
   //       "selector": ".seo-art-h2",
   //       "isHtml": false
   //     },
   //     "answer": {
+  //       "adjacentToQuestion": true,
   //       "selector": "p",
   //       "isHtml": true
   //     }
@@ -327,78 +292,122 @@ router.post("/scrape", function (req, res, next) {
     results: [],
   };
 
-  c.queue([
-    {
-      uri: config.url,
-      jQuery: true,
+  return new Promise((resolve, reject) => {
+    try {
+      c.queue([
+        {
+          uri: config.url,
+          jQuery: true,
 
-      // The global callback won't be called
-      callback: function (error, scrapeRes, done) {
-        if (error) {
-          logger.error(error);
-        } else {
-          var q = url.parse(config.url, true);
-          let site = q.protocol + "//" + q.host;
-          var jQuery = scrapeRes.$;
-          jQuery(config.rules.iterSelector).each(function (i, elem) {
-            let qa = {};
-            let qElem = jQuery(this).find(config.rules.question.selector);
-            qa.question = config.rules.question.isHtml
-              ? absolutify(`<p>${qElem.html()}</p>`, site)
-              : qElem.text();
+          callback: function (error, scrapeRes, done) {
+            var q = url.parse(config.url, true);
+            let site = q.protocol + "//" + q.host;
+            results.results = [];
+            if (error) {
+              reject(error);
+            } else {
+              var jQuery = scrapeRes.$;
+              if (config.rules.answer.adjacentToQuestion) {
+                jQuery(config.rules.iterSelector).each(function (i, elem) {
+                  jQuery(this)
+                    .find(config.rules.question.selector)
+                    .each(function (qi, qElem) {
+                      let qa = {};
+                      qa.question = config.rules.question.isHtml
+                        ? absolutify(
+                            `${jQuery(qElem).wrap("<span>").parent().html()}`,
+                            site
+                          )
+                        : jQuery(qElem).text();
 
-            let aElem = jQuery(this).find(config.rules.answer.selector);
+                      cleanQuestion(qa);
 
-            qa.answer = config.rules.answer.isHtml
-              ? absolutify(`<p>${aElem.html()}</p>`, site)
-              : aElem.text();
+                      let aElem = jQuery(this).nextUntil(
+                        config.rules.question.selector
+                      );
+                      qa.answer = config.rules.answer.isHtml
+                        ? absolutify(
+                            `${aElem.wrap("<span>").parent().html()}`,
+                            site
+                          )
+                        : aElem.text();
+                      cleanAnswer(qa);
 
-            qa.question = qa.question.trim();
-            qa.answer = qa.answer.trim();
+                      if (qa.question && qa.answer) {
+                        // logger.debug(`Q&A`, qa);
+                        results.results.push(qa);
+                      }
+                    });
+                });
+              } else {
+                jQuery(config.rules.iterSelector).each(function (i, elem) {
+                  let qa = {};
+                  let qElem = jQuery(this).find(config.rules.question.selector);
 
-            // var siteURL = "http://" + top.location.host.toString();
-            // var $internalLinks = $("a[href^='"+siteURL+"'], a[href^='/'], a[href^='./'], a[href^='../'], a[href^='#']");
+                  qa.question = config.rules.question.isHtml
+                    ? absolutify(
+                        `${qElem.wrap("<span>").parent().html()}`,
+                        site
+                      )
+                    : qElem.text();
+                  let aElem = jQuery(this).find(config.rules.answer.selector);
+                  qa.answer = config.rules.answer.isHtml
+                    ? absolutify(
+                        `${aElem.wrap("<span>").parent().html()}`,
+                        site
+                      )
+                    : aElem.text();
+                  cleanQuestion(qa);
+                  cleanAnswer(qa);
 
-            if (qa.question && qa.answer) {
-              results.results.push(qa);
+                  if (qa.question && qa.answer) {
+                    results.results.push(qa);
+                  }
+                });
+              }
+              resolve(results);
+              done();
             }
-          });
-          saveResults(results);
-          saveConfig(config);
-          res.send(results);
-        }
-        done();
-      },
-    },
-  ]);
-});
+          },
+        },
+      ]);
+    } catch (e) {
+      reject(e);
+    }
+  });
 
-function handleScrapeResponse(error, scrapeRes, config, results, res) {
-  var q = url.parse(config.url, true);
-  let site = q.protocol + "//" + q.host;
-  results.results = [];
-  if (error) {
-    logger.error(error);
-  } else {
-    var jQuery = scrapeRes.$;
-    jQuery(config.rules.iterSelector).each(function (i, elem) {
-      let qa = {};
-      let qElem = jQuery(this).find(config.rules.question.selector);
-      qa.question = config.rules.question.isHtml
-        ? absolutify(`<p>${qElem.html()}</p>`, site)
-        : qElem.text();
-      let aElem = jQuery(this).find(config.rules.answer.selector);
-      qa.answer = config.rules.answer.isHtml
-        ? absolutify(`<p>${aElem.html()}</p>`, site)
-        : aElem.text();
-      qa.question = qa.question.trim();
+  function cleanAnswer(qa) {
+    if (qa.answer === "null") {
+      qa.answer = null;
+      return;
+    }
+    if (qa.answer) {
       qa.answer = qa.answer.trim();
-
-      if (qa.question && qa.answer) {
-        results.results.push(qa);
+      if (config.rules.answer.isHtml) {
+        qa.answer = pretty(
+          `<span class='faq-scraper-answer'>${qa.answer}</span>`,
+          {
+            ocd: true,
+          }
+        );
       }
-    });
-    res.send(results);
+    }
+  }
+
+  function cleanQuestion(qa) {
+    if (qa.question === "null") {
+      qa.question = null;
+      return;
+    }
+    if (qa.question) {
+      qa.question = qa.question.trim();
+      if (config.rules.question.isHtml) {
+        qa.question = pretty(
+          `<span class='faq-scraper-question'>${qa.question}</span>`,
+          { ocd: true }
+        );
+      }
+    }
   }
 }
 

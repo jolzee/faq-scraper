@@ -50,20 +50,30 @@
           ></v-text-field>
         </v-col>
         <v-col cols="6">
-          <v-text-field
-            v-model="configCopy.rules.question.selector"
-            label="Question Selector"
-            class="mr-2"
-          ></v-text-field>
-          <v-switch color="success" v-model="configCopy.rules.question.isHtml" :label="`HTML`"></v-switch>
+          <v-card class="elevation-2 pa-4 mr-4">
+            <v-text-field
+              v-model="configCopy.rules.question.selector"
+              label="Question Selector"
+              class="mr-2"
+            ></v-text-field>
+            <v-switch color="success" v-model="configCopy.rules.question.isHtml" :label="`HTML`"></v-switch>
+          </v-card>
         </v-col>
-        <v-col cols="6">
-          <v-text-field
-            v-model="configCopy.rules.answer.selector"
-            label="Answer Selector"
-            class="mr-2"
-          ></v-text-field>
-          <v-switch color="success" v-model="configCopy.rules.answer.isHtml" :label="`HTML`"></v-switch>
+        <v-col cols="6" class="mb-4">
+          <v-card class="elevation-2 pa-4">
+            <v-text-field
+              v-model="configCopy.rules.answer.selector"
+              :disabled="configCopy.rules.answer.adjacentToQuestion"
+              label="Answer Selector"
+              class="mr-2"
+            ></v-text-field>
+            <v-switch
+              color="success"
+              v-model="configCopy.rules.answer.adjacentToQuestion"
+              :label="`Adjacent to Question?`"
+            ></v-switch>
+            <v-switch color="success" v-model="configCopy.rules.answer.isHtml" :label="`HTML`"></v-switch>
+          </v-card>
         </v-col>
         <v-col cols="12" class="text-right">
           <v-btn v-if="isNew" small @click="close" color="blue white--text mr-2 mb-3">

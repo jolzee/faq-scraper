@@ -35,6 +35,7 @@ export default {
           isHtml: false
         },
         answer: {
+          adjactToQuestion: false,
           selector: "",
           isHtml: true
         }
