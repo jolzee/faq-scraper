@@ -309,32 +309,27 @@ function handleScrape(config) {
               var jQuery = scrapeRes.$;
               if (config.rules.answer.adjacentToQuestion) {
                 jQuery(config.rules.iterSelector).each(function (i, elem) {
-                  jQuery(this)
+                  jQuery(elem)
                     .find(config.rules.question.selector)
                     .each(function (qi, qElem) {
                       let qa = {};
                       qa.question = config.rules.question.isHtml
-                        ? absolutify(
-                            `${jQuery(qElem).wrap("<span>").parent().html()}`,
-                            site
-                          )
+                        ? jQuery(qElem).html()
                         : jQuery(qElem).text();
 
                       cleanQuestion(qa);
 
-                      let aElem = jQuery(this).nextUntil(
+                      let aElem = jQuery(qElem).nextUntil(
                         config.rules.question.selector
                       );
                       qa.answer = config.rules.answer.isHtml
-                        ? absolutify(
-                            `${aElem.wrap("<span>").parent().html()}`,
-                            site
-                          )
-                        : aElem.text();
+                        ? jQuery(aElem).html()
+                        : jQuery(aElem).text();
+
                       cleanAnswer(qa);
 
                       if (qa.question && qa.answer) {
-                        // logger.debug(`Q&A`, qa);
+                        fixRelativeUrls(qa, site);
                         results.results.push(qa);
                       }
                     });
@@ -345,22 +340,18 @@ function handleScrape(config) {
                   let qElem = jQuery(this).find(config.rules.question.selector);
 
                   qa.question = config.rules.question.isHtml
-                    ? absolutify(
-                        `${qElem.wrap("<span>").parent().html()}`,
-                        site
-                      )
-                    : qElem.text();
+                    ? jQuery(qElem).html()
+                    : jQuery(qElem).text();
+
                   let aElem = jQuery(this).find(config.rules.answer.selector);
                   qa.answer = config.rules.answer.isHtml
-                    ? absolutify(
-                        `${aElem.wrap("<span>").parent().html()}`,
-                        site
-                      )
-                    : aElem.text();
+                    ? jQuery(aElem).html()
+                    : jQuery(aElem).text();
                   cleanQuestion(qa);
                   cleanAnswer(qa);
 
                   if (qa.question && qa.answer) {
+                    fixRelativeUrls(qa, site);
                     results.results.push(qa);
                   }
                 });
@@ -375,6 +366,15 @@ function handleScrape(config) {
       reject(e);
     }
   });
+
+  function fixRelativeUrls(qa, site) {
+    if (config.rules.question.isHtml) {
+      qa.question = absolutify(qa.question, site);
+    }
+    if (config.rules.answer.isHtml) {
+      qa.answer = absolutify(qa.answer, site);
+    }
+  }
 
   function cleanAnswer(qa) {
     if (qa.answer === "null") {
@@ -395,7 +395,7 @@ function handleScrape(config) {
   }
 
   function cleanQuestion(qa) {
-    if (qa.question === "null") {
+    if (qa.question === "null" || !qa.question) {
       qa.question = null;
       return;
     }

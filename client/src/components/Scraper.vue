@@ -170,7 +170,8 @@ export default {
         !this.configCopy.url ||
         !this.configCopy.rules.iterSelector ||
         !this.configCopy.rules.question.selector ||
-        !this.configCopy.rules.answer.selector
+        (!this.configCopy.rules.answer.selector &&
+          !this.configCopy.rules.answer.adjacentToQuestion)
       ) {
         return true;
       } else {
