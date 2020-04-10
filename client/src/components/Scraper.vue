@@ -3,7 +3,7 @@
     <v-expansion-panel-header
       :disable-icon-rotate="isDirty ? true : false"
       :color="isDirty ? 'brown lighten-4' : ''"
-      :hide-actions="hideIcon"
+      :hide-actions="hideIcon && !isDirty"
     >
       <v-row no-gutters>
         <v-col sm="4" xs="6">{{ `👨‍✈️ ${configCopy.parentKey}` }}</v-col>
@@ -97,10 +97,31 @@
             <span class="mr-2">Groovy Example</span>
             <v-icon>mdi-code-braces-box</v-icon>
           </v-btn>-->
-          <v-btn small @click="getTestResults" color="blue-grey darken-2 mr-2 mb-3 white--text">
-            <span class="mr-2">Test</span>
-            <v-icon>mdi-test-tube</v-icon>
-          </v-btn>
+
+          <v-menu open-on-hover top offset-y>
+            <template v-slot:activator="{ on }">
+              <v-btn
+                :disabled="isNotValid"
+                small
+                v-on="on"
+                color="blue-grey darken-2 mr-2 mb-3 white--text"
+              >
+                <span class="mr-2">Test</span>
+                <v-icon>mdi-test-tube</v-icon>
+              </v-btn>
+            </template>
+
+            <v-list>
+              <v-list-item
+                v-for="(testItem, index) in testItems"
+                :key="index"
+                @click="testItem.clickAction"
+              >
+                <v-list-item-title>{{ testItem.title}}</v-list-item-title>
+              </v-list-item>
+            </v-list>
+          </v-menu>
+
           <v-btn
             v-if="!isNew"
             small
@@ -159,7 +180,11 @@ export default {
   data: function() {
     return {
       configCopy: clonedeep(this.config),
-      isDirty: false
+      isDirty: false,
+      testItems: [
+        { title: "JSON Results", clickAction: this.showResultsInJson },
+        { title: "Table Results", clickAction: this.showResultsInTable }
+      ]
     };
   },
   computed: {
@@ -198,6 +223,25 @@ export default {
     }
   },
   methods: {
+    showTestResults(mode) {
+      this.$toasted
+        .info(`Getting Test Results...`, {
+          position: "bottom-right",
+          iconPack: "mdi",
+          icon: mode === "table" ? "table-large" : "code-json"
+        })
+        .goAway(2000);
+      this.$store.dispatch("getTestConfigResults", {
+        config: this.configCopy,
+        mode: mode
+      });
+    },
+    showResultsInTable() {
+      this.showTestResults("table");
+    },
+    showResultsInJson() {
+      this.showTestResults("json");
+    },
     changeCron(result) {
       this.copyConfig.cron = result;
     },
@@ -228,16 +272,7 @@ export default {
       this.isDirty = false;
       this.$emit("close");
     },
-    getTestResults() {
-      this.$toasted
-        .info("Getting Test Results...", {
-          position: "bottom-right",
-          iconPack: "mdi",
-          icon: "check"
-        })
-        .goAway(2000);
-      this.$store.dispatch("getTestConfigResults", this.configCopy);
-    },
+
     copyUrlToClipboard() {
       const url = `${process.env.VUE_APP_SERVER_URL}/results/${this.configCopy.parentKey}/${this.configCopy.childKey}`;
       copy(url);
@@ -270,5 +305,6 @@ export default {
 <style>
 button.v-btn--disabled {
   margin-bottom: 12px;
+  margin-right: 8px;
 }
 </style>

@@ -1,9 +1,6 @@
 <template>
-  <v-row v-if="resultsJson" justify="center">
+  <v-row v-if="resultsJson && resultsMode === 'json'" justify="center">
     <v-dialog v-model="dialog" scrollable max-width="800px">
-      <template v-slot:activator="{ on }">
-        <v-btn color="primary" dark v-on="on">Open Dialog</v-btn>
-      </template>
       <v-card>
         <v-card-title>Scraper Results</v-card-title>
         <v-divider></v-divider>
@@ -32,7 +29,7 @@ export default {
     dialog: true
   }),
   computed: {
-    ...mapGetters(["resultsJson"])
+    ...mapGetters(["resultsJson", "resultsMode"])
     // myComputedMethod() {}
   },
   methods: {

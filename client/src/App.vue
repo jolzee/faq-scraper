@@ -15,12 +15,13 @@
       <v-spacer></v-spacer>
 
       <v-btn color="indigo darken-4" small @click="addConfig">
-        <span class="mr-2">Add New Scraper</span>
+        <span class="mr-2">New Scraper</span>
         <v-icon>mdi-plus-thick</v-icon>
       </v-btn>
     </v-app-bar>
 
     <Code></Code>
+    <TableResults></TableResults>
 
     <v-content>
       <Scrapers></Scrapers>
@@ -33,12 +34,14 @@
 
 import Scrapers from "./components/Scrapers";
 import Code from "./components/Code";
+import TableResults from "./components/TableResults";
 
 export default {
   name: "App",
   components: {
     Scrapers,
-    Code
+    Code,
+    TableResults
   },
   data: () => ({
     //
