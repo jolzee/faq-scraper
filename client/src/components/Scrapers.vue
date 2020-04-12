@@ -1,5 +1,5 @@
 <template>
-  <v-card flat class="mx-auto mt-5" max-width="800">
+  <v-card flat class="mx-auto mt-5 pa-4" max-width="1024">
     <NewScraper></NewScraper>
     <v-card-text>
       <v-row justify="center">

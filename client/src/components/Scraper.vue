@@ -6,75 +6,113 @@
       :hide-actions="hideIcon && !isDirty"
     >
       <v-row no-gutters>
-        <v-col sm="4" xs="6">{{ `👨‍✈️ ${configCopy.parentKey}` }}</v-col>
-        <v-col sm="8" xs="6">{{ `🦸‍♂️ ${configCopy.childKey} `}}</v-col>
+        <v-col sm="4" xs="6">
+          <kbd class="pa-1 parent elevation-2">{{ `👨‍✈️ ${configCopy.parentKey}` }}</kbd>
+        </v-col>
+        <v-col sm="8" xs="6">
+          <kbd class="pa-1 child elevation-2">{{ `🦸‍♂️ ${configCopy.childKey} `}}</kbd>
+        </v-col>
       </v-row>
       <template v-if="isDirty" v-slot:actions>
         <v-icon color="brown darken-4">mdi-content-save-edit-outline</v-icon>
       </template>
     </v-expansion-panel-header>
-    <v-expansion-panel-content>
+    <v-divider></v-divider>
+    <v-expansion-panel-content color="#FCFCFC">
       <v-row no-gutters class="mt-3">
-        <v-col cols="6">
-          <v-text-field
-            v-model="configCopy.parentKey"
-            :disabled="readOnlyKeys"
-            label="Parent Key"
-            class="mr-2"
-          ></v-text-field>
-        </v-col>
-        <v-col cols="6">
-          <v-text-field
-            v-model="configCopy.childKey"
-            :disabled="readOnlyKeys"
-            label="Child Key"
-            class="mr-2"
-          ></v-text-field>
-        </v-col>
+        <template v-if="!readOnlyKeys">
+          <v-col cols="6">
+            <v-text-field
+              v-model="configCopy.parentKey"
+              solo
+              :disabled="readOnlyKeys"
+              label="Parent Key"
+              class="mr-2"
+            ></v-text-field>
+          </v-col>
+          <v-col cols="6">
+            <v-text-field
+              v-model="configCopy.childKey"
+              solo
+              :disabled="readOnlyKeys"
+              label="Child Key"
+              class="mr-2"
+            ></v-text-field>
+          </v-col>
+        </template>
         <v-col cols="4">
-          <v-text-field v-model="configCopy.cron" label="Cron Expression" class="mr-2"></v-text-field>
+          <v-text-field
+            v-model="configCopy.cron"
+            prepend-icon="mdi-clock-outline"
+            label="Cron Expression"
+            class="mr-2"
+          ></v-text-field>
         </v-col>
         <v-col cols="8" align="start" justify="bottom">
           <p class="text-left">
-            <kbd>{{ cronForHumans }}</kbd>
+            <kbd class="ml-4 px-3 elevation-2 human-cron">{{ cronForHumans }}</kbd>
           </p>
         </v-col>
         <v-col cols="8">
-          <v-text-field v-model="configCopy.url" label="URL" class="mr-2"></v-text-field>
+          <v-text-field
+            v-model="configCopy.url"
+            prepend-icon="mdi-link-box-variant"
+            label="URL"
+            class="mr-2"
+          ></v-text-field>
         </v-col>
         <v-col cols="4">
           <v-text-field
             v-model="configCopy.rules.iterSelector"
+            prepend-icon="mdi-group"
             label="Iteration Selector"
             class="mr-2"
           ></v-text-field>
         </v-col>
         <v-col cols="6">
-          <v-card class="elevation-2 pa-4 mr-4">
-            <v-text-field
-              v-model="configCopy.rules.question.selector"
-              label="Question Selector"
-              class="mr-2"
-            ></v-text-field>
-            <v-switch color="success" v-model="configCopy.rules.question.isHtml" :label="`HTML`"></v-switch>
-          </v-card>
+          <v-hover v-slot:default="{ hover }" open-delay="200">
+            <v-card :elevation="hover ? 5 : 2" class="pa-4 mr-4">
+              <v-text-field
+                v-model="configCopy.rules.question.selector"
+                label="Question Selector"
+                prepend-icon="mdi-crosshairs-question"
+                class="mr-2"
+              ></v-text-field>
+              <v-switch
+                dense
+                color="primary"
+                v-model="configCopy.rules.question.isHtml"
+                :label="`HTML`"
+              ></v-switch>
+            </v-card>
+          </v-hover>
         </v-col>
         <v-col cols="6" class="mb-4">
-          <v-card class="elevation-2 pa-4">
-            <v-text-field
-              v-model="configCopy.rules.answer.selector"
-              :disabled="configCopy.rules.answer.adjacentToQuestion"
-              label="Answer Selector"
-              class="mr-2"
-            ></v-text-field>
-            <v-switch
-              color="success"
-              v-model="configCopy.rules.answer.adjacentToQuestion"
-              :label="`Adjacent to Question?`"
-            ></v-switch>
-            <v-switch color="success" v-model="configCopy.rules.answer.isHtml" :label="`HTML`"></v-switch>
-          </v-card>
+          <v-hover v-slot:default="{ hover }" open-delay="200">
+            <v-card :elevation="hover ? 5 : 2" class="pa-4">
+              <v-text-field
+                v-model="configCopy.rules.answer.selector"
+                prepend-icon="mdi-target"
+                :disabled="configCopy.rules.answer.adjacentToQuestion"
+                label="Answer Selector"
+                class="mr-2"
+              ></v-text-field>
+              <v-switch
+                dense
+                color="primary"
+                v-model="configCopy.rules.answer.adjacentToQuestion"
+                :label="`Adjacent to Question?`"
+              ></v-switch>
+              <v-switch
+                dense
+                color="primary"
+                v-model="configCopy.rules.answer.isHtml"
+                :label="`HTML`"
+              ></v-switch>
+            </v-card>
+          </v-hover>
         </v-col>
+
         <v-col cols="12" class="text-right">
           <v-btn v-if="isNew" small @click="close" color="blue white--text mr-2 mb-3">
             <span class="mr-2">Cancel</span>
@@ -278,7 +316,7 @@ export default {
       copy(url);
       window.open(url, "_blank");
       this.$toasted
-        .success("URL Copied to Clipboard", {
+        .info("URL Copied to Clipboard", {
           position: "bottom-right",
           iconPack: "mdi",
           icon: "check"
@@ -306,5 +344,13 @@ export default {
 button.v-btn--disabled {
   margin-bottom: 12px;
   margin-right: 8px;
+}
+
+kbd.parent {
+  background: #ef4b59 !important;
+}
+
+kbd.human-cron {
+  background: #2e2866 !important;
 }
 </style>

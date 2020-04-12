@@ -1,5 +1,5 @@
 <template>
-  <v-dialog v-if="showNewConfigDialog" v-model="dialog" persistent max-width="800px">
+  <v-dialog v-if="showNewConfigDialog" v-model="dialog" persistent max-width="1024">
     <v-expansion-panels v-model="panel">
       <Scraper
         :isNew="true"
