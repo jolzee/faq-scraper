@@ -10,24 +10,24 @@ const store = new Vuex.Store({
     resultsMode: "json",
     configs: [],
     showNewConfigDialog: false,
-    newConfigBase: null
+    newConfigBase: null,
   },
   getters: {
-    resultsMode: state => {
+    resultsMode: (state) => {
       return state.resultsMode;
     },
-    newConfigBase: state => {
+    newConfigBase: (state) => {
       return state.newConfigBase;
     },
-    resultsJson: state => {
+    resultsJson: (state) => {
       return state.resultsJson;
     },
-    configs: state => {
+    configs: (state) => {
       return state.configs;
     },
-    showNewConfigDialog: state => {
+    showNewConfigDialog: (state) => {
       return state.showNewConfigDialog;
-    }
+    },
   },
   mutations: {
     SET_RESULTS_MODE(state, mode) {
@@ -48,7 +48,7 @@ const store = new Vuex.Store({
     },
     HIDE_NEW_CONFIG_DIALOG(state) {
       state.showNewConfigDialog = false;
-    }
+    },
   },
   actions: {
     saveConfig(context, config) {
@@ -74,22 +74,35 @@ const store = new Vuex.Store({
     getAllConfigs(context) {
       superagent
         .get(process.env.VUE_APP_SERVER_URL + "/all-configs")
-        .then(results => {
+        .then((results) => {
           context.commit("SET_ALL_CONFIGS", results.body);
         })
         .catch(console.error);
+    },
+    getTestModuleConfigResults(_context, config) {
+      return new Promise((resolve, reject) => {
+        superagent
+          .post(process.env.VUE_APP_SERVER_URL + "/test-scrape-module")
+          .send(config)
+          .then((results) => {
+            resolve(results.body);
+          })
+          .catch((error) => {
+            reject(error);
+          });
+      });
     },
     getTestConfigResults(context, info) {
       superagent
         .post(process.env.VUE_APP_SERVER_URL + "/test-scrape")
         .send(info.config)
-        .then(results => {
+        .then((results) => {
           context.commit("SET_RESULTS_MODE", info.mode);
           context.commit("SET_RESULTS_JSON", results.body);
         })
         .catch(console.error);
-    }
-  }
+    },
+  },
 });
 
 export default store;

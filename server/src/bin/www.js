@@ -3,6 +3,7 @@ require("dotenv").config();
 
 import "core-js/stable";
 import "regenerator-runtime/runtime";
+// nice logging
 const winston = require("../config/winston");
 
 var app = require("../app");
@@ -12,7 +13,7 @@ var http = require("http");
  * Get port from environment and store in Express.
  */
 
-var port = normalizePort(process.env.PORT || "3000");
+var port = normalizePort(process.env.PORT || "5000");
 app.set("port", port);
 
 /**

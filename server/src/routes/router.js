@@ -1,21 +1,32 @@
 require("dotenv").config();
+const hookStd = require("hook-std");
+var requireFromString = require("require-from-string");
 var cron = require("node-cron");
 var absolutify = require("absolutify");
 var url = require("url");
 var express = require("express");
 var router = express.Router();
-router.delete;
 const logger = require("../config/winston");
 var Crawler = require("crawler");
 var Redis = require("ioredis");
 var pretty = require("pretty");
-var redis = new Redis({
-  port: parseInt(process.env.REDIS_PORT), // Redis port
-  host: process.env.REDIS_HOST, // Redis host
-  family: 4, // 4 (IPv4) or 6 (IPv6)
-  password: process.env.REDIS_PASSWORD,
-  db: 0,
-});
+var redis = null;
+
+try {
+  if (process.env.REDIS_PORT) {
+    redis = new Redis({
+      port: parseInt(process.env.REDIS_PORT), // Redis port
+      host: process.env.REDIS_HOST, // Redis host
+      family: 4, // 4 (IPv4) or 6 (IPv6)
+      password: process.env.REDIS_PASSWORD,
+      db: 0,
+    });
+  } else {
+    redis = new Redis(`${process.env.REDIS_URL}`);
+  }
+} catch (e) {
+  logger.error(e);
+}
 
 let cronTasks = [];
 
@@ -31,25 +42,48 @@ const getAllConfigs = () => {
   return redis.hvals("faq-configs");
 };
 
+const isValid = (config) => {
+  if (
+    config.parentKey &&
+    config.childKey &&
+    config.url &&
+    (config.module ||
+      (config.rules.iterSelector &&
+        config.rules.question.selector &&
+        (config.rules.answer.adjacentToQuestion ||
+          config.rules.answer.selector)))
+  ) {
+    return true;
+  } else {
+    return false;
+  }
+};
+
 const scheduleCronJobs = () => {
   logger.debug(`Refreshing CRON Jobs`);
-  cronTasks = [];
-  getAllConfigs().then((configs) => {
-    configs.forEach((config) => {
-      try {
-        config = JSON.parse(config);
-        if (cron.validate(config.cron)) {
-          var task = cron.schedule(config.cron, () => {
-            logger.debug(`CRON: Time to refresh`, config);
-            refreshResults(config);
-          });
-          cronTasks.push(task);
+  try {
+    cronTasks = [];
+    getAllConfigs().then((configs) => {
+      configs.forEach((config) => {
+        try {
+          config = JSON.parse(config);
+          if (isValid(config)) {
+            if (cron.validate(config.cron)) {
+              var task = cron.schedule(config.cron, () => {
+                logger.debug(`CRON: Time to refresh`, config);
+                refreshResults(config);
+              });
+              cronTasks.push(task);
+            }
+          }
+        } catch (e) {
+          logger.error(`CRON: Bad config: config`);
         }
-      } catch (e) {
-        logger.error(`CRON: Bad config: config`);
-      }
+      });
     });
-  });
+  } catch (e) {
+    logger.error(e);
+  }
 };
 
 const refreshResults = (config) => {
@@ -148,6 +182,10 @@ router.delete("/config/:parentKey/:childKey", function (req, res, next) {
   });
 });
 
+router.get("/ping", function (req, res, next) {
+  res.send({ result: "pong" });
+});
+
 router.delete("/results/:parentKey/:childKey", function (req, res, next) {
   let parentKey = req.params.parentKey;
   let childKey = req.params.childKey;
@@ -198,17 +236,21 @@ router.post("/delete-config", function (req, res, next) {
 
 router.get("/all-configs", function (req, res, next) {
   let allConfigs = [];
-  getAllConfigs()
-    .then((results) => {
-      results.forEach((result) => {
-        allConfigs.push(JSON.parse(result, null, 2));
+  try {
+    getAllConfigs()
+      .then((results) => {
+        results.forEach((result) => {
+          allConfigs.push(JSON.parse(result, null, 2));
+        });
+        allConfigs.sort(sortConfigs);
+        res.send(allConfigs);
+      })
+      .catch((err) => {
+        res.send(allConfigs);
       });
-      allConfigs.sort(sortConfigs);
-      res.send(allConfigs);
-    })
-    .catch((err) => {
-      res.send({ result: err.message });
-    });
+  } catch (e) {
+    res.send(allConfigs);
+  }
 });
 
 /**
@@ -234,12 +276,43 @@ router.post("/test-scrape", function (req, res, next) {
     results: [],
   };
 
-  handleScrape(config)
+  if (config.module) {
+    handModuleScrape(config)
+      .then((results) => {
+        res.send(results);
+      })
+      .catch((error) => {
+        emptyResults.error = error.message;
+        res.send(emptyResults);
+      });
+  } else {
+    handleScrape(config)
+      .then((results) => {
+        res.send(results);
+      })
+      .catch((error) => {
+        emptyResults.errorLog = error.message;
+        res.send(emptyResults);
+      });
+  }
+});
+
+router.post("/test-scrape-module", function (req, res, next) {
+  let config = req.body;
+  logger.debug("Testing Scrape Module");
+  let emptyResults = {
+    date: new Date().toUTCString(),
+    config: config,
+    results: [],
+  };
+
+  handModuleScrape(config)
     .then((results) => {
       res.send(results);
     })
     .catch((error) => {
-      emptyResults.error = error.message;
+      logger.error(`Module Scrape Error: ${error.message}`);
+      emptyResults.logResults = error;
       res.send(emptyResults);
     });
 });
@@ -254,19 +327,152 @@ router.post("/scrape", function (req, res, next) {
     results: [],
   };
 
-  handleScrape(config)
-    .then((results) => {
-      saveResults(results);
-      saveConfig(config);
-      res.send(results);
-    })
-    .catch((error) => {
-      emptyResults.error = error.message;
-      res.send(emptyResults);
-    });
+  if (config.module) {
+    handModuleScrape(config)
+      .then((results) => {
+        delete results.logResults;
+        saveResults(results);
+        saveConfig(config);
+        res.send(results);
+      })
+      .catch((error) => {
+        emptyResults.error = error.message;
+        res.send(emptyResults);
+      });
+  } else {
+    handleScrape(config)
+      .then((results) => {
+        saveResults(results);
+        saveConfig(config);
+        res.send(results);
+      })
+      .catch((error) => {
+        emptyResults.error = error.message;
+        res.send(emptyResults);
+      });
+  }
 });
 
-function handleScrape(config) {
+const handModuleScrape = (config) => {
+  //// Example ////
+  let logResults = [];
+  var stdout = process.stdout;
+
+  let results = {
+    date: new Date().toUTCString(),
+    config: config,
+    results: [],
+    logResults: [],
+  };
+
+  return new Promise((resolve, reject) => {
+    try {
+      c.queue([
+        {
+          uri: config.url,
+          jQuery: true,
+
+          callback: async function (error, scrapeRes, done) {
+            var q = url.parse(config.url, true);
+            let site = q.protocol + "//" + q.host;
+            results.results = [];
+            if (error) {
+              logger.debug(
+                `Can't perform the initial scrape: ${error.message}`
+              );
+              results.logResults.push(error.stack);
+              reject(logResults);
+            } else {
+              var jQuery = scrapeRes.$;
+              let hookPromise = null;
+              try {
+                hookPromise = hookStd.stdout((output) => {
+                  results.logResults.push(output);
+                });
+                let buff = Buffer.from(config.module, "base64");
+                let text = buff.toString("ascii");
+                let customJobModule = requireFromString(text);
+                results.results = customJobModule.getAll(jQuery);
+                if (results.results.length > 0) {
+                  results.results.forEach((result) => {
+                    cleanQuestion(result);
+                    cleanAnswer(result);
+                    fixRelativeUrls(result, site);
+                  });
+                }
+                hookPromise.unhook();
+                await hookPromise;
+              } catch (e) {
+                hookPromise.unhook();
+                await hookPromise;
+                logResults.push(e.message);
+                reject(logResults);
+                done();
+              }
+
+              resolve(results);
+              done();
+            }
+          },
+        },
+      ]);
+    } catch (e) {
+      logResults.push(e.stack);
+      reject(logResults);
+    }
+  });
+
+  function fixRelativeUrls(qa, site) {
+    if (config.rules.question.isHtml) {
+      qa.question = absolutify(qa.question, site);
+    }
+    if (config.rules.answer.isHtml) {
+      qa.answer = absolutify(qa.answer, site);
+    }
+  }
+
+  function cleanAnswer(qa) {
+    if (qa.answer === "null") {
+      qa.answer = null;
+      return;
+    }
+    if (qa.answer) {
+      qa.answer = qa.answer.trim();
+      if (
+        config.rules.answer.isHtml ||
+        /<([A-Za-z][A-Za-z0-9]*)\b[^>]*>(.*?)<\/\1>/.test(qa.answer)
+      ) {
+        qa.answer = pretty(
+          `<span class='faq-scraper-answer'>${qa.answer}</span>`,
+          {
+            ocd: true,
+          }
+        );
+      }
+    }
+  }
+
+  function cleanQuestion(qa) {
+    if (qa.question === "null" || !qa.question) {
+      qa.question = null;
+      return;
+    }
+    if (qa.question) {
+      qa.question = qa.question.trim();
+      if (
+        config.rules.question.isHtml ||
+        /<([A-Za-z][A-Za-z0-9]*)\b[^>]*>(.*?)<\/\1>/.test(qa.question)
+      ) {
+        qa.question = pretty(
+          `<span class='faq-scraper-question'>${qa.question}</span>`,
+          { ocd: true }
+        );
+      }
+    }
+  }
+};
+
+function handleScrape(config, test = true) {
   // {
   //   "parentKey": "huggies",
   //   "childKey": "faq-us",
@@ -284,7 +490,8 @@ function handleScrape(config) {
   //       "selector": "p",
   //       "isHtml": true
   //     }
-  //   }
+  //   },
+  //   module: ""
   // }
   let results = {
     date: new Date().toUTCString(),
@@ -307,55 +514,72 @@ function handleScrape(config) {
               reject(error);
             } else {
               var jQuery = scrapeRes.$;
-              if (config.rules.answer.adjacentToQuestion) {
-                jQuery(config.rules.iterSelector).each(function (i, elem) {
-                  jQuery(elem)
-                    .find(config.rules.question.selector)
-                    .each(function (qi, qElem) {
-                      let qa = {};
+
+              try {
+                if (config.rules.answer.adjacentToQuestion) {
+                  jQuery(config.rules.iterSelector).each(function (i, elem) {
+                    jQuery(elem)
+                      .find(config.rules.question.selector)
+                      .each(function (qi, qElem) {
+                        let qa = {};
+                        qa.question = config.rules.question.isHtml
+                          ? jQuery(qElem).html()
+                          : jQuery(qElem).text();
+
+                        cleanQuestion(qa);
+                        console.log(qa.question);
+
+                        let aElem = jQuery(qElem).nextUntil(
+                          config.rules.question.selector
+                        );
+                        qa.answer = config.rules.answer.isHtml
+                          ? jQuery(aElem).html()
+                          : jQuery(aElem).text();
+
+                        cleanAnswer(qa);
+
+                        if (qa.question && qa.answer) {
+                          fixRelativeUrls(qa, site);
+                          results.results.push(qa);
+                        }
+                      });
+                  });
+                } else {
+                  jQuery(config.rules.iterSelector).each(function (i, elem) {
+                    let qa = {};
+                    let qElem = jQuery(this).find(
+                      config.rules.question.selector
+                    );
+                    if (qElem.length === 1) {
                       qa.question = config.rules.question.isHtml
                         ? jQuery(qElem).html()
                         : jQuery(qElem).text();
 
-                      cleanQuestion(qa);
-
-                      let aElem = jQuery(qElem).nextUntil(
-                        config.rules.question.selector
+                      let aElem = jQuery(this).find(
+                        config.rules.answer.selector
                       );
                       qa.answer = config.rules.answer.isHtml
                         ? jQuery(aElem).html()
                         : jQuery(aElem).text();
-
+                      cleanQuestion(qa);
                       cleanAnswer(qa);
 
                       if (qa.question && qa.answer) {
                         fixRelativeUrls(qa, site);
                         results.results.push(qa);
                       }
-                    });
-                });
-              } else {
-                jQuery(config.rules.iterSelector).each(function (i, elem) {
-                  let qa = {};
-                  let qElem = jQuery(this).find(config.rules.question.selector);
-
-                  qa.question = config.rules.question.isHtml
-                    ? jQuery(qElem).html()
-                    : jQuery(qElem).text();
-
-                  let aElem = jQuery(this).find(config.rules.answer.selector);
-                  qa.answer = config.rules.answer.isHtml
-                    ? jQuery(aElem).html()
-                    : jQuery(aElem).text();
-                  cleanQuestion(qa);
-                  cleanAnswer(qa);
-
-                  if (qa.question && qa.answer) {
-                    fixRelativeUrls(qa, site);
-                    results.results.push(qa);
-                  }
-                });
+                    } else if (qElem > 1) {
+                      jQuery(qElem).each(function (qIndex, qElemActual) {
+                        console.log(jQuery(qElemActual).text());
+                      });
+                    }
+                  });
+                }
+              } catch (e) {
+                reject(e);
+                done();
               }
+
               resolve(results);
               done();
             }

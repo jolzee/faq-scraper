@@ -12,8 +12,8 @@ Vue.use(VueHighlightJS, {
   // Register only languages that you want
   languages: {
     json,
-    javascript,
-  },
+    javascript
+  }
 });
 
 Vue.config.productionTip = false;
@@ -21,5 +21,5 @@ Vue.config.productionTip = false;
 new Vue({
   vuetify,
   store,
-  render: (h) => h(App),
+  render: h => h(App)
 }).$mount("#app");
