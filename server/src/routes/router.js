@@ -10,6 +10,8 @@ const logger = require("../config/winston");
 var Crawler = require("crawler");
 var Redis = require("ioredis");
 var pretty = require("pretty");
+const { format } = require("@fast-csv/format");
+var replaceall = require("replaceall");
 var redis = null;
 
 try {
@@ -204,6 +206,36 @@ router.get("/results/:parentKey/:childKey", function (req, res, next) {
   getResults(parentKey, childKey).then((result) => {
     if (result) {
       res.send(JSON.parse(result, null, 2));
+    } else {
+      res.send({ results: [] });
+    }
+  });
+});
+
+router.get("/results/csv/:parentKey/:childKey", function (req, res, next) {
+  let parentKey = req.params.parentKey;
+  let childKey = req.params.childKey;
+  getResults(parentKey, childKey).then((result) => {
+    if (result) {
+      let parsedResults = JSON.parse(result, null, 2);
+
+      let csvFileName = `${parentKey}-${childKey}-bulk-import.csv`;
+      res.writeHead(200, {
+        "Content-Type": "text/csv",
+        "Content-Disposition": "attachment; filename=" + csvFileName,
+      });
+      const stream = format();
+      stream.pipe(res);
+
+      stream.write(["#ignore", "FAQ data below", "Training Examples"]);
+
+      parsedResults.results.forEach((qa) => {
+        let question = replaceall("?Show", "?", qa.question);
+        stream.write(["#question_answer", question, ""]);
+        stream.write(["#question", "", question]);
+        stream.write(["#answer", qa.answer], "");
+      });
+      stream.end();
     } else {
       res.send({ results: [] });
     }

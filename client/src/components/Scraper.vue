@@ -335,6 +335,15 @@
           <v-btn
             v-if="!isNew"
             small
+            @click="downloadCsv"
+            color="indigo darken-4 mr-2 mb-3 white--text"
+          >
+            <span class="mr-2">CSV Bulk Import</span>
+            <v-icon>mdi-microsoft-excel</v-icon>
+          </v-btn>
+          <v-btn
+            v-if="!isNew"
+            small
             @click="copyUrlToClipboard"
             color="indigo darken-4 mr-2 mb-3 white--text"
           >
@@ -656,7 +665,13 @@ module.exports = {
       this.isDirty = false;
       this.$emit("close");
     },
-
+    downloadCsv() {
+      const url = `${process.env.VUE_APP_SERVER_URL}/results/csv/${this.configCopy.parentKey}/${this.configCopy.childKey}`;
+      let link = document.createElement("a");
+      link.download = `${this.configCopy.parentKey}-${this.configCopy.childKey}-bulk-import.csv`;
+      link.href = url;
+      link.click();
+    },
     copyUrlToClipboard() {
       const url = `${process.env.VUE_APP_SERVER_URL}/results/${this.configCopy.parentKey}/${this.configCopy.childKey}`;
       copy(url);
