@@ -14,7 +14,7 @@
     "cronstrue": "^1.93.0",
     "highlight.js": "^9.18.1",
     "local-web-server": "^4.0.0",
-    "lodash": "^4.17.15",
+    "lodash": "^4.17.19",
     "superagent": "^5.2.2",
     "vue": "^2.6.11",
     "vue-highlight.js": "^3.1.0",
