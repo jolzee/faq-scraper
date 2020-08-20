@@ -531,6 +531,14 @@ function handleScrape(config, test = true) {
     results: [],
   };
 
+  function isUnique(quesiton) {
+    if (results.results.find((o) => o.question === quesiton)) {
+      return false;
+    } else {
+      return true;
+    }
+  }
+
   return new Promise((resolve, reject) => {
     try {
       c.queue([
@@ -570,7 +578,7 @@ function handleScrape(config, test = true) {
 
                         cleanAnswer(qa);
 
-                        if (qa.question && qa.answer) {
+                        if (qa.question && qa.answer && isUnique(qa.question)) {
                           fixRelativeUrls(qa, site);
                           results.results.push(qa);
                         }
