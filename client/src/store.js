@@ -51,6 +51,25 @@ const store = new Vuex.Store({
     },
   },
   actions: {
+    getQnAConversion(_context, config) {
+      return new Promise((resolve, reject) => {
+        superagent
+          .post(process.env.VUE_APP_SERVER_URL + "/qna")
+          .set("Content-Type", "application/json")
+          .send(config)
+          .then((response) => {
+            var blob = new Blob([response.text]);
+            var link = document.createElement("a");
+            link.href = window.URL.createObjectURL(blob);
+            link.download = "teneo-bulk-import-from-qna.csv";
+            link.click();
+            resolve();
+          })
+          .catch((error) => {
+            reject(error);
+          });
+      });
+    },
     saveConfig(context, config) {
       superagent
         .post(process.env.VUE_APP_SERVER_URL + "/scrape")
@@ -72,6 +91,7 @@ const store = new Vuex.Store({
         .catch(console.error);
     },
     getAllConfigs(context) {
+      console.log(`Server URL: ` + process.env.VUE_APP_SERVER_URL);
       superagent
         .get(process.env.VUE_APP_SERVER_URL + "/all-configs")
         .then((results) => {

@@ -254,6 +254,26 @@ router.get("/config/:parentKey/:childKey", function (req, res, next) {
   });
 });
 
+router.post("/qna", function (req, res, next) {
+  let qnaConfig = req.body;
+  let csvFileName = `csv-bulk-import-teneo.csv`;
+  res.writeHead(200, {
+    "Content-Type": "text/csv",
+    "Content-Disposition": "attachment; filename=" + csvFileName,
+  });
+  const stream = format();
+  stream.pipe(res);
+
+  stream.write(["#ignore", "FAQ data below", "Training Examples"]);
+  qnaConfig.qnaDocuments.forEach((qa) => {
+    stream.write(["#question_answer", qa.questions[0], ""]);
+    stream.write(["#question", "", qa.questions[0]]);
+    stream.write(["#answer", qa.answer], "");
+  });
+  stream.end();
+  // res.send({ result: "ok" });
+});
+
 router.post("/save-config", function (req, res, next) {
   let config = req.body;
   saveConfig(config);

@@ -13,7 +13,10 @@
       </div>
 
       <v-spacer></v-spacer>
-
+      <v-btn color="indigo darken-4" small @click="showQnA = true" class="mr-5">
+        <span class="mr-2">QnA to Teneo Bulk Import</span>
+        <v-icon>mdi-microsoft-azure</v-icon>
+      </v-btn>
       <v-btn color="indigo darken-4" small @click="addConfig">
         <span class="mr-2">New Scraper</span>
         <v-icon>mdi-plus-thick</v-icon>
@@ -22,6 +25,7 @@
 
     <Code></Code>
     <TableResults></TableResults>
+    <QnA v-if="showQnA" @close="showQnA = false"></QnA>
 
     <v-content>
       <Scrapers></Scrapers>
@@ -35,16 +39,18 @@
 import Scrapers from "./components/Scrapers";
 import Code from "./components/Code";
 import TableResults from "./components/TableResults";
+import QnA from "./components/QnA";
 
 export default {
   name: "App",
   components: {
     Scrapers,
     Code,
-    TableResults
+    TableResults,
+    QnA,
   },
   data: () => ({
-    //
+    showQnA: false,
   }),
   computed: {
     // ...mapGetters(["testResults"])
@@ -52,7 +58,7 @@ export default {
   methods: {
     addConfig() {
       this.$store.commit("SHOW_NEW_CONFIG_DIALOG");
-    }
-  }
+    },
+  },
 };
 </script>
